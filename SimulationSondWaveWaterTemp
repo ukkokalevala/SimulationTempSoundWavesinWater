@@ -1,0 +1,96 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1 // Use -1 if no reset pin is connected
+#define OLED_I2C_ADDRESS 0x3C // Adjust if needed
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Sound sensor pin
+const int soundSensorPin = A0;
+int temperature = 20; // Initial temperature (in degrees Celsius)
+
+// Particle properties
+const int numParticles = 10;          // Number of particles (molecules)
+int particleX[numParticles];          // X positions of particles
+int particleY[numParticles];          // Y positions of particles
+int particleOffset[numParticles];     // Random offsets for movement
+
+void setup() {
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS)) {
+    for(;;); // Stop here if the display doesn't initialize
+  }
+
+  // Clear display
+  display.clearDisplay();
+  display.display();
+
+  // Initialize random positions for particles
+  for (int i = 0; i < numParticles; i++) {
+    particleX[i] = random(0, SCREEN_WIDTH);
+    particleY[i] = random(0, SCREEN_HEIGHT);
+    particleOffset[i] = random(1, 3); // Random small offset for initial movement
+  }
+}
+
+void loop() {
+  // Simulate temperature change
+  temperature = analogRead(A1); // Simulate reading temperature from a sensor (use any analog pin for temp simulation)
+  temperature = map(temperature, 0, 1023, 0, 30); // Map to a realistic temperature range
+
+  // Read sound sensor value (0-1023)
+  int soundLevel = analogRead(soundSensorPin);
+
+  // Calculate speed of sound based on temperature (simplified)
+  int soundSpeed = 1449 + 4.6 * temperature; // Approximate speed of sound in water in m/s
+
+  // Map sound level to particle movement range
+  int movementRange = map(soundLevel, 0, 1023, 1, soundSpeed / 300); // Scaled down for OLED movement
+
+  // Clear the display
+  display.clearDisplay();
+
+  // Draw the temperature in the top-left corner (reserved area)
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0); // Top-left corner
+  display.print("Temp: ");
+  display.print(temperature);
+  display.print(" C");
+
+  // Reserve an area for the temperature display (e.g., top-left 40x10 pixels)
+  int reservedWidth = 40;
+  int reservedHeight = 10;
+
+  // Update and draw particles
+  for (int i = 0; i < numParticles; i++) {
+    // Calculate new random positions based on sound level
+    particleX[i] += random(-movementRange, movementRange);
+    particleY[i] += random(-movementRange, movementRange);
+
+    // Ensure particles stay within the screen boundaries
+    if (particleX[i] < 0) particleX[i] = 0;
+    if (particleX[i] >= SCREEN_WIDTH) particleX[i] = SCREEN_WIDTH - 1;
+    if (particleY[i] < 0) particleY[i] = 0;
+    if (particleY[i] >= SCREEN_HEIGHT) particleY[i] = SCREEN_HEIGHT - 1;
+
+    // Prevent particles from entering the reserved area for temperature
+    if (particleX[i] < reservedWidth && particleY[i] < reservedHeight) {
+      particleX[i] = random(reservedWidth, SCREEN_WIDTH);  // Move particle outside reserved area
+      particleY[i] = random(reservedHeight, SCREEN_HEIGHT);
+    }
+
+    // Draw particles (water molecules) as small circles
+    display.fillCircle(particleX[i], particleY[i], 2, SSD1306_WHITE);
+  }
+
+  // Show the updated display
+  display.display();
+
+  // Short delay for smoother animation
+  delay(50);
+}
